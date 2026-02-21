@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>E CONNECT SYSTEMS</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root { --primary: #000; --accent: #28a745; --bg: #f2f2f2; }
+        body { margin:0; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); padding-bottom: 80px; }
+        
+        /* Login Page */
+        .login-box { width: 85%; max-width: 350px; margin: 80px auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+        .login-box input { width: 100%; padding: 14px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        .login-box button { background: var(--primary); color: #fff; border: none; padding: 14px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* App Layout */
+        .header { background: var(--primary); color: #fff; padding: 15px; text-align: center; position: sticky; top: 0; z-index: 900; }
+        .sidebar { display: flex; position: fixed; bottom: 0; left: 0; width: 100%; background: #111; z-index: 1000; }
+        .sidebar button { flex: 1; padding: 15px 5px; font-size: 11px; color: #aaa; border: none; background: none; }
+        .sidebar button.active { color: #fff; background: #222; border-top: 3px solid #fff; }
+
+        .content { padding: 15px; }
+        .card { background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        
+        /* Inputs */
+        .input-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+        input, select { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; width: 100%; box-sizing: border-box; }
+        
+        .btn { padding: 12px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-black { background: #000; color: #fff; width: 100%; }
+        .btn-scan { background: #ffc107; color: #000; width: 100%; margin-bottom: 5px; }
+        .btn-red { background: #ff4d4d; color: white; padding: 5px 10px; font-size: 12px; }
+
+        /* Table */
+        .table-wrapper { width: 100%; overflow-x: auto; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; min-width: 450px; font-size: 13px; }
+        th { text-align: left; padding: 10px; background: #f8f9fa; border-bottom: 2px solid #eee; }
+        td { padding: 10px; border-bottom: 1px solid #eee; }
+        .low-stock { background: #fff1f0; color: #cf1322; font-weight: bold; }
+
+        /* Scanner Overlay */
+        #scanner-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; display: flex; flex-direction: column; }
+        #reader { flex: 1; width: 100%; }
+        .scan-exit { padding: 20px; background: #000; text-align: center; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="loginPage" class="login-box">
+    <h2 style="margin:0 0 20px 0;">E CONNECT</h2>
+    <input id="username" type="text" placeholder="Username" spellcheck="false">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">LOGIN</button>
+    <p id="loginError" style="color:red; font-size:14px; margin-top:15px;"></p>
+</div>
+
+<div id="scanner-wrapper" class="hidden">
+    <div id="reader"></div>
+    <div class="scan-exit">
+        <button class="btn" style="width:80%; background:#fff;" onclick="stopScanner()">CANCEL SCAN</button>
+    </div>
+</div>
+
+<div id="mainSystem" class="hidden">
+    <div class="header">
+        <h4 style="margin:0;">E CONNECT SYSTEMS</h4>
+    </div>
+
+    <div class="content">
+        <div id="inSection" class="card">
+            <h3>📥 Inward Entry</h3>
+            <div class="input-group">
+                <button class="btn btn-scan" onclick="startScanner('inCode')">📷 SCAN BARCODE</button>
+                <input id="inCode" placeholder="Product Code">
+                <input id="inProduct" placeholder="Product Name">
+                <input id="inCompany" placeholder="Company Name">
+                <input id="inQty" type="number" placeholder="Quantity">
+                <button class="btn btn-black" onclick="addIn()">ADD TO STOCK</button>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead><tr><th>Date</th><th>Code</th><th>Qty</th><th>Del</th></tr></thead>
+                    <tbody id="inTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="outSection" class="card hidden">
+            <h3>📤 Direct Outward</h3>
+            <div class="input-group">
+                <button class="btn btn-scan" onclick="startScanner('outCode')">📷 SCAN BARCODE</button>
+                <input id="outCode" placeholder="Product Code">
+                <input id="outProduct" placeholder="Product Name" readonly style="background:#f9f9f9">
+                <input id="outQty" type="number" placeholder="Quantity">
+                <button class="btn btn-black" onclick="addOut()">SUBMIT OUT</button>
+            </div>
+        </div>
+
+        <div id="issueSection" class="card hidden">
+            <h3>📋 Project Issue</h3>
+            <input id="prjCodeHeader" placeholder="ENTER PROJECT CODE" style="border: 2px solid #000; margin-bottom: 10px; font-weight: bold;">
+            <div class="input-group">
+                <button class="btn btn-scan" onclick="startScanner('issCode')">📷 SCAN BARCODE</button>
+                <input id="issCode" placeholder="Product Code">
+                <input id="issProduct" placeholder="Product Name" readonly style="background:#f9f9f9">
+                <input id="issName" placeholder="Issued To (Person Name)">
+                <input id="issQty" type="number" placeholder="Quantity">
+                <button class="btn btn-black" style="background:#007bff;" onclick="addIssue()">ISSUE TO PROJECT</button>
+            </div>
+        </div>
+
+        <div id="summarySection" class="card hidden">
+            <h3>📊 Current Stock</h3>
+            <input type="text" id="searchBox" placeholder="Search by name or code..." onkeyup="renderSummary()">
+            <div class="table-wrapper">
+                <table>
+                    <thead><tr><th>Product</th><th>Bal</th><th>Action</th></tr></thead>
+                    <tbody id="summaryBox"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="settingsSection" class="card hidden">
+            <h3>⚙️ Settings</h3>
+            <button class="btn" style="width:100%; background:#28a745; color:white; margin-bottom:10px;" onclick="downloadBackup()">BACKUP DATA</button>
+            <button class="btn" style="width:100%; background:#666; color:white;" onclick="logout()">LOGOUT</button>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <button id="nav-in" class="active" onclick="showSection('inSection', 'nav-in')">IN</button>
+        <button id="nav-out" onclick="showSection('outSection', 'nav-out')">OUT</button>
+        <button id="nav-iss" onclick="showSection('issueSection', 'nav-iss')">ISSUE</button>
+        <button id="nav-sum" onclick="showSection('summarySection', 'nav-sum')">STOCK</button>
+        <button id="nav-set" onclick="showSection('settingsSection', 'nav-set')">SET</button>
+    </div>
+</div>
+
+<script>
+    let inStock = JSON.parse(localStorage.getItem("inStock")) || [];
+    let outStock = JSON.parse(localStorage.getItem("outStock")) || [];
+    let issueStock = JSON.parse(localStorage.getItem("issueStock")) || [];
+
+    // --- LOGIN ---
+    function login() {
+        const u = document.getElementById("username").value.trim().toLowerCase();
+        const p = document.getElementById("password").value.trim();
+        if(u === "admin" && p === "9442") {
+            localStorage.setItem("loggedIn", "true");
+            showMain();
+        } else {
+            document.getElementById("loginError").innerText = "Invalid Admin Credentials";
+        }
+    }
+
+    function logout() { localStorage.removeItem("loggedIn"); location.reload(); }
+
+    function showMain() {
+        document.getElementById("loginPage").classList.add("hidden");
+        document.getElementById("mainSystem").classList.remove("hidden");
+        render();
+    }
+
+    function showSection(id, navId) {
+        document.querySelectorAll('.card').forEach(c => c.classList.add('hidden'));
+        document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.remove('hidden');
+        document.getElementById(navId).classList.add('active');
+        window.scrollTo(0,0);
+        render(); 
+    }
+
+    // --- SCANNER ---
+    let html5QrCode;
+    async function startScanner(inputId) {
+        document.getElementById('scanner-wrapper').classList.remove('hidden');
+        html5QrCode = new Html5Qrcode("reader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        try {
+            await html5QrCode.start({ facingMode: "environment" }, config, (text) => {
+                document.getElementById(inputId).value = text;
+                // Auto-fill product name if it exists in stock
+                const s = calculate();
+                if(s[text]) {
+                    if(inputId === 'outCode') document.getElementById('outProduct').value = s[text].product;
+                    if(inputId === 'issCode') document.getElementById('issProduct').value = s[text].product;
+                }
+                stopScanner();
+            });
+        } catch (err) { alert("Camera failed. Use HTTPS."); stopScanner(); }
+    }
+
+    function stopScanner() {
+        if(html5QrCode) html5QrCode.stop().finally(() => {
+            document.getElementById('scanner-wrapper').classList.add('hidden');
+        });
+    }
+
+    // --- CALCULATIONS ---
+    function calculate() {
+        let stock = {};
+        inStock.forEach(e => {
+            if(!stock[e.code]) stock[e.code] = { product: e.product, qty: 0 };
+            stock[e.code].qty += parseInt(e.qty);
+        });
+        outStock.forEach(e => { if(stock[e.code]) stock[e.code].qty -= parseInt(e.qty); });
+        issueStock.forEach(e => { if(stock[e.code]) stock[e.code].qty -= parseInt(e.qty); });
+        return stock;
+    }
+
+    // --- ACTIONS ---
+    function addIn() {
+        const code = document.getElementById("inCode").value;
+        const product = document.getElementById("inProduct").value;
+        const qty = document.getElementById("inQty").value;
+        if(!code || !qty) return alert("Fill Code and Qty");
+        inStock.push({ code, product, qty, date: new Date().toLocaleDateString('en-GB') });
+        saveAndRefresh();
+        ["inCode", "inProduct", "inQty", "inCompany"].forEach(id => document.getElementById(id).value = "");
+    }
+
+    function addOut() {
+        const code = document.getElementById("outCode").value;
+        const qty = parseInt(document.getElementById("outQty").value);
+        const s = calculate();
+        if(!s[code] || s[code].qty < qty) return alert("Insufficient Stock!");
+        outStock.push({ code, product: s[code].product, qty, date: new Date().toLocaleDateString('en-GB') });
+        saveAndRefresh();
+        document.getElementById("outCode").value = ""; document.getElementById("outQty").value = "";
+    }
+
+    function addIssue() {
+        const prj = document.getElementById("prjCodeHeader").value.toUpperCase();
+        const code = document.getElementById("issCode").value;
+        const qty = parseInt(document.getElementById("issQty").value);
+        const name = document.getElementById("issName").value;
+        const s = calculate();
+        if(!prj) return alert("Enter Project Code!");
+        if(!s[code] || s[code].qty < qty) return alert("Insufficient Stock!");
+        issueStock.push({ project: prj, code, product: s[code].product, qty, name, date: new Date().toLocaleDateString('en-GB') });
+        saveAndRefresh();
+        document.getElementById("issCode").value = ""; document.getElementById("issQty").value = "";
+    }
+
+    function saveAndRefresh() {
+        localStorage.setItem("inStock", JSON.stringify(inStock));
+        localStorage.setItem("outStock", JSON.stringify(outStock));
+        localStorage.setItem("issueStock", JSON.stringify(issueStock));
+        render();
+    }
+
+    function render() {
+        // Render In Table
+        const inT = document.getElementById("inTable");
+        inT.innerHTML = "";
+        inStock.slice(-5).reverse().forEach((e, i) => {
+            inT.innerHTML += `<tr><td>${e.date}</td><td>${e.code}</td><td>${e.qty}</td><td><button class="btn-red" onclick="delIn(${inStock.length-1-i})">X</button></td></tr>`;
+        });
+        renderSummary();
+    }
+
+    function renderSummary() {
+        const s = calculate();
+        const filter = document.getElementById("searchBox").value.toLowerCase();
+        const box = document.getElementById("summaryBox");
+        box.innerHTML = "";
+        for(let c in s) {
+            if(c.toLowerCase().includes(filter) || s[c].product.toLowerCase().includes(filter)) {
+                box.innerHTML += `<tr class="${s[c].qty <= 5 ? 'low-stock' : ''}">
+                    <td><b>${c}</b><br><small>${s[c].product}</small></td>
+                    <td>${s[c].qty}</td>
+                    <td><button onclick="alert('Balance: ' + ${s[c].qty})">View</button></td>
+                </tr>`;
+            }
+        }
+    }
+
+    function delIn(i) { if(confirm("Delete?")) { inStock.splice(i,1); saveAndRefresh(); } }
+
+    function downloadBackup() {
+        const blob = new Blob([JSON.stringify({inStock, outStock, issueStock})], {type: "application/json"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "stock_data.json";
+        a.click();
+    }
+
+    window.onload = () => { if(localStorage.getItem("loggedIn") === "true") showMain(); };
+</script>
+</body>
+</html>
